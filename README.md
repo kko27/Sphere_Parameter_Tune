@@ -7,7 +7,7 @@ Geometry files using image segmentation and meshing techniques from the optical 
 The parameters are found with a full-factorial parameter sweep: forward simulations (structural simulations from Simvascular svmultiphysics, up to ~30 minutes each) are run on a 10 x 10 grid of $(\eta_{max}, a_{1})$ points, and the simulated RMS-Strain curves are compared with the experimental ones.
 
 <figure>
-  <img src=./Figures.pdf" alt="Schematic of the Calibration Workflow">
+  <img src=./Figures.png" alt="Schematic of the Calibration Workflow">
   <figcaption>Schematic of the Calibration Workflow</figcaption>
 </figure>
 
