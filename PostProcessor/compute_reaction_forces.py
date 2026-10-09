@@ -67,10 +67,28 @@ def reaction_force(vol, node_set):
     return (t * a[:, None]).sum(axis=0)               # net force vector
 
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SAMPLES_DIR = os.path.join(ROOT_DIR, "Samples")
+MESH_SURF = os.path.join(ROOT_DIR, "BaselineFiles", "mesh_scaled", "mesh-surfaces")
+RESULTS_SUBDIR = "24-procs"     # svMultiPhysics writes to "<nprocs>-procs"
+
+
 def main():
-    PLOTFLAG = False 
-    DIR_PATH = "../ExampleFiles/24-procs"
-    MESH_SURF = "../ExampleFiles/mesh_scaled/mesh-surfaces"
+    """Reaction forces for every DONE sample of the sweep that doesn't have them yet."""
+    samples = sorted(d for d in glob.glob(os.path.join(SAMPLES_DIR, "s[0-9]*")) if os.path.isdir(d))
+    for sample in samples:
+        status_file = os.path.join(sample, "status")
+        if not os.path.exists(status_file) or open(status_file).readline().strip() != "DONE":
+            continue
+        dir_path = os.path.join(sample, RESULTS_SUBDIR)
+        if os.path.exists(os.path.join(dir_path, "net_reaction_force.csv")):
+            continue
+        print(f"=== {os.path.basename(sample)}")
+        process_run(dir_path)
+
+
+def process_run(DIR_PATH):
+    PLOTFLAG = False
     FACES = ["sphere_top", "sphere_bottom"]
     OUT_CSV = os.path.join(DIR_PATH, "net_reaction_force.csv")
     OUT_PNG = os.path.join(DIR_PATH, "net_reaction_force.png")

@@ -1,0 +1,13 @@
+.DS_Store
+__pycache__/
+
+# Sweep outputs
+Samples/*/*-procs/
+Samples/*/.claim/
+Samples/*/status
+Samples/*/sim.log
+Samples/sweep_log.csv
+Samples/rms_summary.csv
+Samples/rms_reaction_force.png
+sweep_*.out
+sweep_*.err
