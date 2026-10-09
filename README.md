@@ -20,6 +20,7 @@ The error (objective) function is the MSE error between the simulated RMS-Strain
 - `Generator/generate_svmp_files.py`: builds the grid in `Samples/s001 ... s100` (solver.xml + scaled activation waveform per point) and `Samples/samples.txt` (sample, i_eta, i_a1, Eta_Max, a1)
 - `driver.py` / `run_functions.py`: sweep worker. Runs pending samples one after another and records the outcome of each in `Samples/sNNN/status` and `Samples/sweep_log.csv`
 - `submit_sweep.sbatch`: Sherlock job script that runs one worker
+- `submit_postprocess.sbatch`: Sherlock job script that runs both post-processing scripts on a compute node
 - `PostProcessor/compute_reaction_forces.py`: platen reaction forces for every `DONE` sample
 - `PostProcessor/compute_RMS.py`: Force RMS per strain step for every sample, written to `Samples/rms_summary.csv`
 
@@ -45,12 +46,13 @@ python3 driver.py reset --stale                 # free samples whose job died (e
 python3 driver.py reset --status TIMEOUT FAILED # queue those samples again
 ```
 
-After the sweep (needs pyvista, scipy, matplotlib):
+After the sweep (needs pyvista, scipy, matplotlib), run the post-processing on a compute node, since the login nodes don't have enough memory:
 
 ```bash
-python3 PostProcessor/compute_reaction_forces.py
-python3 PostProcessor/compute_RMS.py
+sbatch submit_postprocess.sbatch             # reaction forces, then rms_summary.csv
 ```
+
+This runs `compute_reaction_forces.py` followed by `compute_RMS.py`. Samples that already have `net_reaction_force.csv` are skipped, so it is safe to resubmit as more samples finish.
 
 ### Internal Notes to Consider 
 - RMS: Double check that the experimental RMS is the same as the computational RMS 

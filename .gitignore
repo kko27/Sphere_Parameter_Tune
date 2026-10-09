@@ -11,3 +11,5 @@ Samples/rms_summary.csv
 Samples/rms_reaction_force.png
 sweep_*.out
 sweep_*.err
+postprocess_*.out
+postprocess_*.err
