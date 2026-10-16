@@ -1,22 +1,26 @@
-"""Net platen reaction force for the squish (ustruct) simulation.
+"""Axial platen force for the squish (ustruct) simulation, from cross-sections.
 
-For a body in quasi-static equilibrium the force transmitted across a surface S is
+The upper half of the sphere (z > 0) is loaded in z only by the top platen
+contact and by the stress transmitted across a horizontal cut: the rest of its
+surface is traction-free, pin_axis_top constrains x/y only, there are no body
+forces, and inertia is negligible (~1e-5 uN).  Equilibrium therefore gives
 
-    F = integral over S of  sigma_cauchy . n  dA          (deformed configuration)
+    F_platen = - integral over the cut of  sigma_zz  dA        (deformed configuration)
 
-so the platen reaction is the traction  sigma . n  integrated over the *contact
-face only* (wall_top / wall_bottom), with normals and areas taken in the deformed
-mesh.  The BCs here are RigidPlanePenalty (not Dirichlet), so there are no nodal
-reactions to read off -- post-processing the stress field is the right route.
+for any horizontal cut through the sphere.  Integrating sigma . n over the
+sphere_top face instead is not usable: that face is the whole upper hemisphere,
+not the contact patch, and the nodal-averaged stress on the free surface is far
+from traction-free once the fibres are active (spurious dips and sign flips at
+twitch onset).
 
-result_*.vtu points are the reference mesh, so we warp_by_vector('Displacement')
-before integrating.  Cauchy_stress is a 6-component Voigt vector.
+Cuts are taken at z = -150, 0, 150 um in the deformed mesh (all well inside the
+sphere at 25% strain).  The z = 0 cut is the reported force; the other two are a
+check, since in equilibrium all three must agree.
 
 Units: model is um / mg / s  =>  stress in Pa, force in pN  (1 Pa.um^2 = 1e-12 N).
-Outputs are written in pN; plot is |F_z| in uN.
+Force is compressive-positive.
 
-Writes:  net_reaction_force.csv   (time, F vector + magnitude, for each face)
-         net_reaction_force.png   (axial reaction vs time, both faces)
+Writes:  section_force.csv   (time, force at each cut)
 """
 
 import glob
@@ -25,63 +29,34 @@ import re
 
 import numpy as np
 import pyvista as pv
-from scipy.spatial import cKDTree
 from matplotlib import pyplot as plt
-
-
-def voigt_to_mat(v):
-    """svMultiPhysics symmetric-tensor output order: [xx, yy, zz, xy, yz, xz]."""
-    xx, yy, zz, xy, yz, xz = v.T
-    m = np.empty((v.shape[0], 3, 3))
-    m[:, 0, 0], m[:, 1, 1], m[:, 2, 2] = xx, yy, zz
-    m[:, 0, 1] = m[:, 1, 0] = xy
-    m[:, 0, 2] = m[:, 2, 0] = xz
-    m[:, 1, 2] = m[:, 2, 1] = yz
-    return m
-
-
-def face_node_set(face_vtp, ref_points):
-    """Indices into the volume mesh of the nodes that lie on a boundary face."""
-    f = pv.read(face_vtp)
-    d, idx = cKDTree(ref_points).query(f.points)
-    assert d.max() < 1e-3, f"{face_vtp}: face/volume points do not match ({d.max():.3g})"
-    return set(idx.tolist())
-
-
-def reaction_force(vol, node_set):
-    """Sum  sigma . n * dA  over the surface cells belonging to node_set (deformed)."""
-    warped = vol.warp_by_vector("Displacement")
-    surf = warped.extract_surface(pass_pointid=True, algorithm="dataset_surface")
-    orig = surf.point_data["vtkOriginalPointIds"]
-    keep = [c for c in range(surf.n_cells)
-            if all(orig[p] in node_set for p in surf.get_cell(c).point_ids)]
-    if not keep:
-        return np.zeros(3)
-    sub = surf.extract_cells(keep).extract_surface(algorithm="dataset_surface")
-    sub = sub.compute_normals(cell_normals=True, point_normals=False,
-                              auto_orient_normals=True).point_data_to_cell_data()
-    s = voigt_to_mat(np.asarray(sub.cell_data["Cauchy_stress"]))
-    n = np.asarray(sub.cell_data["Normals"])
-    a = sub.compute_cell_sizes(area=True).cell_data["Area"]
-    t = np.einsum("kij,kj->ki", s, n)                 # traction per cell
-    return (t * a[:, None]).sum(axis=0)               # net force vector
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAMPLES_DIR = os.path.join(ROOT_DIR, "Samples")
-MESH_SURF = os.path.join(ROOT_DIR, "BaselineFiles", "mesh_scaled", "mesh-surfaces")
 RESULTS_SUBDIR = "24-procs"     # svMultiPhysics writes to "<nprocs>-procs"
+OUT_NAME = "section_force.csv"
+CUTS_Z = [0.0, -150.0, 150.0]   # um, deformed configuration; first one is the reported force
+SPREAD_WARN = 0.10              # warn when the cuts disagree by more than 10% of the peak force (~5% is typical)
+
+
+def section_force(warped, z):
+    """Compressive axial force (pN) transmitted across the horizontal plane at z."""
+    s = warped.slice(normal="z", origin=(0.0, 0.0, z)).triangulate()
+    s = s.compute_cell_sizes(area=True).point_data_to_cell_data()
+    szz = np.asarray(s.cell_data["Cauchy_stress"])[:, 2]      # Voigt [xx, yy, zz, xy, yz, xz]
+    return -float(np.sum(szz * s.cell_data["Area"]))
 
 
 def main():
-    """Reaction forces for every DONE sample of the sweep that doesn't have them yet."""
+    """Section forces for every DONE sample of the sweep that doesn't have them yet."""
     samples = sorted(d for d in glob.glob(os.path.join(SAMPLES_DIR, "s[0-9]*")) if os.path.isdir(d))
     for sample in samples:
         status_file = os.path.join(sample, "status")
         if not os.path.exists(status_file) or open(status_file).readline().strip() != "DONE":
             continue
         dir_path = os.path.join(sample, RESULTS_SUBDIR)
-        if os.path.exists(os.path.join(dir_path, "net_reaction_force.csv")):
+        if os.path.exists(os.path.join(dir_path, OUT_NAME)):
             continue
         print(f"=== {os.path.basename(sample)}")
         process_run(dir_path)
@@ -89,56 +64,50 @@ def main():
 
 def process_run(DIR_PATH):
     PLOTFLAG = False
-    FACES = ["sphere_top", "sphere_bottom"]
-    OUT_CSV = os.path.join(DIR_PATH, "net_reaction_force.csv")
-    OUT_PNG = os.path.join(DIR_PATH, "net_reaction_force.png")
+    OUT_CSV = os.path.join(DIR_PATH, OUT_NAME)
+    OUT_PNG = os.path.join(DIR_PATH, "section_force.png")
 
     files = sorted(glob.glob(os.path.join(DIR_PATH, "result_*.vtu")),
                 key=lambda p: int(re.search(r"result_(\d+)", p).group(1)))
     if not files:
         raise SystemExit(f"no result_*.vtu in {DIR_PATH}")
 
-    ref = pv.read(files[0]).points.copy()
-    nodes = {face: face_node_set(os.path.join(MESH_SURF, f"{face}.vtp"), ref)
-            for face in FACES}
-
     times = []
-    forces = {face: [] for face in FACES}          # list of [Fx, Fy, Fz] per step
+    forces = []                                     # one row per step, one column per cut
     for fn in files:
         vol = pv.read(fn)
         t = float(vol.field_data["TimeValue"][0])
+        warped = vol.warp_by_vector("Displacement")
+        f = [section_force(warped, z) for z in CUTS_Z]
         times.append(t)
-        line = [f"t={t:6.2f}s"]
-        for face in FACES:
-            f_vec = reaction_force(vol, nodes[face])
-            forces[face].append(f_vec)
-            line.append(f"{face}: Fz={f_vec[2]: .3e} pN")
-        print("  ".join(line))
+        forces.append(f)
+        print(f"t={t:6.2f}s  " + "  ".join(f"z={z:+.0f}: {fz: .3e} pN" for z, fz in zip(CUTS_Z, f)))
 
     times = np.asarray(times)
     order = np.argsort(times)
     times = times[order]
+    forces = np.asarray(forces)[order]
+
+    # Equilibrium check: all cuts carry the same force
+    spread = np.ptp(forces, axis=1).max() / np.abs(forces[:, 0]).max()
+    print(f"max spread between cuts: {100 * spread:.1f}% of peak force")
+    if spread > SPREAD_WARN:
+        print(f"WARNING: cuts disagree by more than {100 * SPREAD_WARN:.0f}%, check {DIR_PATH}")
 
     # --- CSV -------------------------------------------------------------------
-    header = ["time_s"]
-    cols = [times]
-    for face in FACES:
-        arr = np.asarray(forces[face])[order]
-        header += [f"{face}_Fx_pN", f"{face}_Fy_pN", f"{face}_Fz_pN", f"{face}_Fmag_pN"]
-        cols += [arr[:, 0], arr[:, 1], arr[:, 2], np.linalg.norm(arr, axis=1)]
-    np.savetxt(OUT_CSV, np.column_stack(cols), delimiter=",",
+    header = ["time_s"] + [f"F_z{z:+.0f}_pN" for z in CUTS_Z]
+    np.savetxt(OUT_CSV, np.column_stack([times, forces]), delimiter=",",
             header=",".join(header), comments="")
     print(f"\nwrote {OUT_CSV}")
 
     # ----------------------------- plot -------------------------------------
     if PLOTFLAG:
         plt.figure()
-        for face in FACES:
-            fz = np.asarray(forces[face])[order][:, 2]
-            plt.plot(times, np.abs(fz) / 1e6, "-o", ms=3, label=f"{face}  |$F_z$|")
+        for k, z in enumerate(CUTS_Z):
+            plt.plot(times, forces[:, k] / 1e6, "-o", ms=3, label=f"cut z = {z:+.0f} µm")
         plt.xlabel("Time (s)")
-        plt.ylabel(r"Axial reaction $|F_z|$  (µN)")
-        plt.title("Squish reaction force")
+        plt.ylabel("Axial platen force (µN)")
+        plt.title("Squish platen force")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()

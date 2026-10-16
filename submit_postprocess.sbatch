@@ -1,12 +1,12 @@
 #!/bin/bash
-# Post-processing for the sweep: platen reaction forces for every DONE sample,
+# Post-processing for the sweep: platen forces for every DONE sample,
 # then the Force RMS summary.  Submit from the repository root once the sweep
 # (or part of it) has finished:
 #
 #   sbatch submit_postprocess.sbatch
 #
-# Resubmitting is safe; samples that already have net_reaction_force.csv are skipped.
-# Outputs: Samples/sNNN/24-procs/net_reaction_force.csv, Samples/rms_summary.csv,
+# Resubmitting is safe; samples that already have section_force.csv are skipped.
+# Outputs: Samples/sNNN/24-procs/section_force.csv, Samples/rms_summary.csv,
 #          Samples/rms_reaction_force.png
 
 #SBATCH --job-name=EtaA1Post

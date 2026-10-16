@@ -21,7 +21,7 @@ The error (objective) function is the MSE error between the simulated RMS-Strain
 - `driver.py` / `run_functions.py`: sweep worker. Runs pending samples one after another and records the outcome of each in `Samples/sNNN/status` and `Samples/sweep_log.csv`
 - `submit_sweep.sbatch`: Sherlock job script that runs one worker
 - `submit_postprocess.sbatch`: Sherlock job script that runs both post-processing scripts on a compute node
-- `PostProcessor/compute_reaction_forces.py`: platen reaction forces for every `DONE` sample
+- `PostProcessor/compute_reaction_forces.py`: platen force for every `DONE` sample, from the stress across horizontal cuts through the sphere (written to `section_force.csv`)
 - `PostProcessor/compute_RMS.py`: Force RMS per strain step for every sample, written to `Samples/rms_summary.csv`
 
 ## Running the Sweep on Sherlock
@@ -52,7 +52,7 @@ After the sweep (needs pyvista, scipy, matplotlib), run the post-processing on a
 sbatch submit_postprocess.sbatch             # reaction forces, then rms_summary.csv
 ```
 
-This runs `compute_reaction_forces.py` followed by `compute_RMS.py`. Samples that already have `net_reaction_force.csv` are skipped, so it is safe to resubmit as more samples finish.
+This runs `compute_reaction_forces.py` followed by `compute_RMS.py`. Samples that already have `section_force.csv` are skipped, so it is safe to resubmit as more samples finish.
 
 ### Internal Notes to Consider 
 - RMS: Double check that the experimental RMS is the same as the computational RMS 
