@@ -23,7 +23,7 @@
 
 module load hypre/2.30.0-i64 hdf5/1.14.6 blis/1.1 boost/1.86.0 vtk/9.3.0
 
-SVMP_EXE=/work2/11985/kbko/stampede3/svmpWithoutTrilinos/svMultiPhysics/build/svMultiPhysics-build/bin/svmultiphysics
+SVMP_EXE=/work2/11985/kbko/stampede3/svMP/svMultiPhysics/build/svMultiPhysics-build/bin/svmultiphysics
 
 cd "$SLURM_SUBMIT_DIR"
 
