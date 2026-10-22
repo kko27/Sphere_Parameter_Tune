@@ -7,7 +7,7 @@ from scipy.signal import detrend
 # section_force.csv (run compute_reaction_forces.py first).
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAMPLES_DIR = os.path.join(ROOT_DIR, "Samples")
-RESULTS_SUBDIR = "24-procs"
+RESULTS_SUBDIR = os.environ.get("RESULTS_SUBDIR", "24-procs")   # "<nprocs>-procs" of the sweep
 LOCAL_DIR = os.path.join(SAMPLES_DIR, "force_rms")   # copies pulled from Sherlock: sNNN_section_force.csv
 file_name = "section_force.csv"
 

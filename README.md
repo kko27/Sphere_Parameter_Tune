@@ -4,7 +4,7 @@ This codebase contains the driver script required to find the parameters $\eta_{
 
 Geometry files using image segmentation and meshing techniques from the optical images obtained during the experiment and the Youngs Modulus measured from passive characterization are also required as inputs to this parameter tuning procedure. 
 
-The parameters are found with a full-factorial parameter sweep: forward simulations (structural simulations from Simvascular svmultiphysics, up to ~30 minutes each) are run on a 10 x 10 grid of $(\eta_{max}, a_{1})$ points, and the simulated RMS-Strain curves are compared with the experimental ones.
+The parameters are found with a full-factorial parameter sweep: forward simulations (structural simulations from Simvascular svmultiphysics, up to ~30 minutes each) are run on a 15 x 10 grid of $(\eta_{max}, a_{1})$ points, and the simulated RMS-Strain curves are compared with the experimental ones.
 
 <figure>
   <img src=./Figures.png" alt="Schematic of the Calibration Workflow">
@@ -13,11 +13,11 @@ The parameters are found with a full-factorial parameter sweep: forward simulati
 
 The forward simulation is a digital twin of the compressive experiment, where step load increases in compressive strain (sweeping from 5 to 25%) is applied. The baseline simulation files are provided under `./BaselineFiles/`
 
-The error (objective) function is the MSE error between the simulated RMS-Strain and experimental RMS-Strain points. The goal would be to minimize these differences. The slope values are constrained in the range of $a_{1} = [1.5, 6.0]$ while $\eta_{max} = [50, 300]$ Pa. The grid includes both end points ($\Delta a_1 = 0.5$, $\Delta \eta_{max} \approx 27.8$ Pa).
+The error (objective) function is the MSE error between the simulated RMS-Strain and experimental RMS-Strain points. The goal would be to minimize these differences. The slope values are constrained in the range of $a_{1} = [1.5, 6.0]$ while $\eta_{max} = [50, 400]$ Pa. The grid includes both end points ($\Delta a_1 = 0.5$, $\Delta \eta_{max} = 25$ Pa). The earlier 10 x 10 grid ($\eta_{max} = [50, 300]$ Pa, $\Delta \eta_{max} \approx 27.8$ Pa) is archived in `Samples_10x10/`.
 
 ## File Architecture 
 
-- `Generator/generate_svmp_files.py`: builds the grid in `Samples/s001 ... s100` (solver.xml + scaled activation waveform per point) and `Samples/samples.txt` (sample, i_eta, i_a1, Eta_Max, a1)
+- `Generator/generate_svmp_files.py`: builds the grid in `Samples/s001 ... s150` (solver.xml + scaled activation waveform per point) and `Samples/samples.txt` (sample, i_eta, i_a1, Eta_Max, a1)
 - `driver.py` / `run_functions.py`: sweep worker. Runs pending samples one after another and records the outcome of each in `Samples/sNNN/status` and `Samples/sweep_log.csv`
 - `submit_sweep.sbatch`: Sherlock job script that runs one worker
 - `submit_postprocess.sbatch`: Sherlock job script that runs both post-processing scripts on a compute node
@@ -53,6 +53,23 @@ sbatch submit_postprocess.sbatch             # reaction forces, then rms_summary
 ```
 
 This runs `compute_reaction_forces.py` followed by `compute_RMS.py`. Samples that already have `section_force.csv` are skipped, so it is safe to resubmit as more samples finish.
+
+## Running the Sweep on Stampede3
+
+Keep the repository on `$WORK`; the simulations run in a copy on `$SCRATCH`. From the repository root on a login node:
+
+```bash
+python3 Generator/generate_svmp_files.py     # once (needs numpy), if Samples/ is not there yet
+./launch_stampede.sh 4                       # 4 parallel 48 h workers + final post-processing job
+cd $SCRATCH/Sphere_Parameter_Tune && python3 driver.py status
+```
+
+`launch_stampede.sh` copies the code, `BaselineFiles/` and the sample inputs to `$SCRATCH/Sphere_Parameter_Tune`, submits the workers (`submit_sweep_stampede.sh`, `ibrun` on a 48-core SKX node, results in `48-procs/`) from there, and queues `submit_postprocess_stampede.sh` with `--dependency=afterany` on all of them. Run it again to add workers; state already on `$SCRATCH` is kept.
+
+- After each `DONE` sample, the worker runs `PostProcessor/postprocess_sample_stampede.sh`: `section_force.csv` and `frank_starling.csv/.png` while the VTUs are still there, then a copy of the sample without VTU/restart files to `$WORK` (`Samples/sNNN/`). Output goes to `Samples/sNNN/postprocess.log`.
+- Once all workers have ended, the final job fills in any sample the workers missed, runs `compute_RMS.py` and `plot_RMS_heatmaps.py`, and copies `Samples/` (no VTUs), the summaries, the heatmaps and the job logs (`logs/`) to `$WORK`.
+
+The VTUs stay on `$SCRATCH`, where TACC purges files not accessed for 10 days. `PostProcessor/stampede_env.sh` holds the python venv path and the `RESULTS_SUBDIR=48-procs` setting used by the post-processing scripts.
 
 ### Internal Notes to Consider 
 - RMS: Double check that the experimental RMS is the same as the computational RMS 

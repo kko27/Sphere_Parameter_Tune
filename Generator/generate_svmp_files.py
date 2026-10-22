@@ -2,10 +2,10 @@
 # svmultiphysics simulations
 
 # Builds a full-factorial grid over the 2-dimensional parameter space
-# Parameters are: Eta_Max and a1 (N_ETA_MAX x N_A1 = 10 x 10 = 100 combinations)
+# Parameters are: Eta_Max and a1 (15 x 10 = 150 combinations)
 
 # For each combination, create a run directory inside Samples
-# Label Samples as s001, s002, ..., s100 (Eta_Max is the outer index, a1 the inner)
+# Label Samples as s001, s002, ..., s150 (Eta_Max is the outer index, a1 the inner)
 # Save the sample parameters as a txt file with fields: sample, i_eta, i_a1, Eta_Max, a1
 # This txt file is saved as samples.txt inside Samples
 
@@ -24,16 +24,13 @@ BASELINE_DIR = os.path.join(ROOT_DIR, 'BaselineFiles')
 SAMPLES_DIR  = os.path.join(ROOT_DIR, 'Samples')
 
 # Sample Space (grid includes both end points of each range):
-N_ETA_MAX   = 10
-N_A1        = 10
-ETA_MAX_RNG = (50.0, 300.0)   # Pascals
-A1_RNG      = (1.5, 6.0)      # Frank-Starling Slope
+eta_max_values = np.arange(50.0, 400.0 + 1e-9, 25.0)   # Pascals, 50, 75, ..., 400 (15 values)
+a1_values      = np.arange(1.5, 6.0 + 1e-9, 0.5)       # Frank-Starling Slope, 1.5, 2.0, ..., 6.0 (10 values)
+N_ETA_MAX      = len(eta_max_values)
+N_A1           = len(a1_values)
 
 # User-Specified Inputs
 Youngs_Modulus = 200 # Pascals
-
-eta_max_values = np.linspace(*ETA_MAX_RNG, N_ETA_MAX)
-a1_values      = np.linspace(*A1_RNG, N_A1)
 
 # Refuse to overwrite inputs of samples that have already been run: the results
 # would no longer match the parameters in samples.txt

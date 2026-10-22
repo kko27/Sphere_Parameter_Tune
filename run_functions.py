@@ -224,3 +224,9 @@ def run_simulation(sample_dir, cmd, results_dir, time_limit, poll_interval=30):
         else:
             status = DONE
     return status, elapsed
+
+
+def run_postprocess(script, sample_dir):
+    """Run `script sample_dir`, output to sample_dir/postprocess.log.  Returns the exit code."""
+    with open(os.path.join(sample_dir, 'postprocess.log'), 'w') as log:
+        return subprocess.call([script, sample_dir], stdout=log, stderr=subprocess.STDOUT)

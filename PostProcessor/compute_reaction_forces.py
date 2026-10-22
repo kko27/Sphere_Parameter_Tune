@@ -21,11 +21,15 @@ Units: model is um / mg / s  =>  stress in Pa, force in pN  (1 Pa.um^2 = 1e-12 N
 Force is compressive-positive.
 
 Writes:  section_force.csv   (time, force at each cut)
+
+Usage:   python PostProcessor/compute_reaction_forces.py [sample_dir ...]
+         (no arguments: every DONE sample in Samples/ that has no section_force.csv yet)
 """
 
 import glob
 import os
 import re
+import sys
 
 import numpy as np
 import pyvista as pv
@@ -34,7 +38,7 @@ from matplotlib import pyplot as plt
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAMPLES_DIR = os.path.join(ROOT_DIR, "Samples")
-RESULTS_SUBDIR = "24-procs"     # svMultiPhysics writes to "<nprocs>-procs"
+RESULTS_SUBDIR = os.environ.get("RESULTS_SUBDIR", "24-procs")   # svMultiPhysics writes to "<nprocs>-procs"
 OUT_NAME = "section_force.csv"
 CUTS_Z = [0.0, -150.0, 150.0]   # um, deformed configuration; first one is the reported force
 SPREAD_WARN = 0.10              # warn when the cuts disagree by more than 10% of the peak force (~5% is typical)
@@ -48,9 +52,9 @@ def section_force(warped, z):
     return -float(np.sum(szz * s.cell_data["Area"]))
 
 
-def main():
-    """Section forces for every DONE sample of the sweep that doesn't have them yet."""
-    samples = sorted(d for d in glob.glob(os.path.join(SAMPLES_DIR, "s[0-9]*")) if os.path.isdir(d))
+def main(sample_dirs):
+    """Section forces for the given samples (default: every DONE sample of the sweep) that don't have them yet."""
+    samples = sample_dirs or sorted(d for d in glob.glob(os.path.join(SAMPLES_DIR, "s[0-9]*")) if os.path.isdir(d))
     for sample in samples:
         status_file = os.path.join(sample, "status")
         if not os.path.exists(status_file) or open(status_file).readline().strip() != "DONE":
@@ -70,7 +74,8 @@ def process_run(DIR_PATH):
     files = sorted(glob.glob(os.path.join(DIR_PATH, "result_*.vtu")),
                 key=lambda p: int(re.search(r"result_(\d+)", p).group(1)))
     if not files:
-        raise SystemExit(f"no result_*.vtu in {DIR_PATH}")
+        print(f"no result_*.vtu in {DIR_PATH}, skipped")   # don't stop the loop over the other samples
+        return
 
     times = []
     forces = []                                     # one row per step, one column per cut
@@ -116,4 +121,4 @@ def process_run(DIR_PATH):
         print(f"wrote {OUT_PNG}")
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

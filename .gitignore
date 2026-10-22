@@ -1,14 +1,17 @@
 .DS_Store
 __pycache__/
 
-# Sweep outputs
-Samples/*/*-procs/
-Samples/*/.claim/
-Samples/*/status
-Samples/*/sim.log
-Samples/sweep_log.csv
-Samples/rms_summary.csv
-Samples/rms_reaction_force.png
+# Sweep outputs (Samples/ and archived grids such as Samples_10x10/)
+Samples*/*/*-procs/
+Samples*/*/.claim/
+Samples*/*/status
+Samples*/*/sim.log
+Samples*/*/postprocess.log
+Samples*/sweep_log.csv
+Samples*/rms_summary.csv
+Samples*/rms_reaction_force.png
+FullSimulations/
+logs/
 sweep_*.out
 sweep_*.err
 postprocess_*.out

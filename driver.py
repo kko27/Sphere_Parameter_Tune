@@ -30,10 +30,12 @@ def cmd_run(args):
     nprocs = args.nprocs or int(os.environ.get('SLURM_NTASKS', '1'))
     # svMultiPhysics writes its results and histor.dat to "<nprocs>-procs/"
     results_dir = '{}-procs'.format(nprocs)
-    if args.launcher == 'srun':
-        cmd = ['srun', args.exe, 'solver.xml']
+    if args.launcher in ('srun', 'ibrun'):
+        cmd = [args.launcher, args.exe, 'solver.xml']
     else:
         cmd = ['mpirun', '-n', str(nprocs), args.exe, 'solver.xml']
+
+    postprocess = os.path.abspath(args.postprocess) if args.postprocess else None
 
     signal.signal(signal.SIGTERM, rf.raise_terminated)
     print('Worker job={} nprocs={} time_limit={}s'.format(job_id, nprocs, args.time_limit), flush=True)
@@ -79,6 +81,14 @@ def cmd_run(args):
         print('[{}] {} after {:.1f} min'.format(name, status, elapsed / 60), flush=True)
         n_run += 1
 
+        # A failed post-processing step does not change the sample's status; the
+        # final post-processing job picks up whatever is missing.
+        if status == rf.DONE and postprocess:
+            code = rf.run_postprocess(postprocess, sample_dir)
+            print('[{}] post-processing {}'.format(name, 'done' if code == 0 else
+                                                   'FAILED (exit {}), see postprocess.log'.format(code)),
+                  flush=True)
+
     print('Worker finished: {} simulations run.'.format(n_run), flush=True)
 
 
@@ -117,7 +127,9 @@ def main():
 
     p_run = sub.add_parser('run', help='work through pending samples')
     p_run.add_argument('--exe', required=True, help='path to the svmultiphysics binary')
-    p_run.add_argument('--launcher', choices=['srun', 'mpirun'], default='srun')
+    p_run.add_argument('--launcher', choices=['srun', 'mpirun', 'ibrun'], default='srun')
+    p_run.add_argument('--postprocess', metavar='SCRIPT',
+                       help='executable run as `SCRIPT <sample_dir>` after each DONE sample')
     p_run.add_argument('--nprocs', type=int, help='MPI ranks (default: $SLURM_NTASKS)')
     p_run.add_argument('--time-limit', type=float, default=2 * 3600,
                        help='max seconds per simulation before it is killed (default 7200)')
