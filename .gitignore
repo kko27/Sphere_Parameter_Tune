@@ -16,3 +16,4 @@ sweep_*.out
 sweep_*.err
 postprocess_*.out
 postprocess_*.err
+Results/force_rms 
